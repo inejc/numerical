@@ -1,0 +1,21 @@
+[run]
+branch = True
+
+source =
+    nnlib
+
+omit =
+    nnlib/tests/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    pass
+    def __repr__
+    if self\.debug
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+
+ignore_errors = True
