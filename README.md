@@ -1,4 +1,6 @@
 ## Numerical mathematics
+[![Build Status](https://travis-ci.org/inejc/numerical.svg?branch=master)](https://travis-ci.org/inejc/numerical)
+
 Python implementations of various numerical methods.
 
 ### Currently implemented
