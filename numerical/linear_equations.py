@@ -1,6 +1,8 @@
 """
 Iterative methods for solving linear equation systems of the form Ax = b.
 """
+import warnings
+from queue import Queue
 
 import numpy as np
 from numpy.linalg import norm
@@ -30,7 +32,9 @@ def to_sparse(A):
 def iterative(C, b, x0, accuracy, omega):
     """Solves a linear equations system Cx = b with the Jacobi, Gauss-Seidel
     and SOR iterative methods where C is a diagonally dominant square matrix
-    (i.e. a coefficient matrix) or a sparse representation of it.
+    (i.e. a coefficient matrix) or a sparse representation of it. Additionally,
+    it tries to rearrange C internally to satisfy the diagonal dominance
+    property.
 
     Parameters
     ----------
@@ -58,10 +62,25 @@ def iterative(C, b, x0, accuracy, omega):
         'gs_num_iter': number of iterations required by the Gauss-Seidel method,
         'sor_num_iter': number of iterations required by the SOR method
     }
+
+    Raises
+    ------
+    ValueError:
+        If C can't be rearranged to a diagonally dominant matrix.
     """
+    is_sparse = _is_sparse(C)
+    switch_indices = None
+
+    if not is_sparse:
+        C, switch_indices = _make_diag_dominant(C.copy())
+
     x, j_num_iter = iterative_jacobi(C, b, x0.copy(), accuracy)
     _, gs_num_iter = iterative_gauss_seidel(C, b, x0.copy(), accuracy)
     _, sor_num_iter = iterative_sor(C, b, x0.copy(), accuracy, omega)
+
+    if not is_sparse:
+        for i0, i1 in reversed(switch_indices):
+            x[i0], x[i1] = x[i1], x[i0]
 
     return {
         'x': x,
@@ -69,6 +88,84 @@ def iterative(C, b, x0, accuracy, omega):
         'gs_num_iter': gs_num_iter,
         'sor_num_iter': sor_num_iter
     }
+
+
+def _make_diag_dominant(X):
+    solutions = Queue()
+
+    # store pairs of solutions, switched columns indices and number of
+    # strictly diagonally dominant rows
+    solutions.put_nowait((X, [], 0))
+    num_current_solutions = 1
+
+    for diag_i in range(X.shape[0]):
+        # more solutions could have been constructed in the previous step
+        # if there were multiple max elements after the diagonal element
+        for _ in range(num_current_solutions):
+            prev_solution = solutions.get_nowait()
+
+            num_new_solutions = _push_new_solutions(
+                diag_i,
+                prev_solution,
+                solutions
+            )
+
+            num_current_solutions = num_new_solutions
+
+    solutions = list(solutions.queue)
+    if len(solutions) == 0:
+        raise ValueError('Input must be a diagonally dominant matrix.')
+
+    for S, switch_indices, num_strict_dominant in solutions:
+        if num_strict_dominant > 0:
+            return S, switch_indices
+
+    warnings.warn('Input matrix is not strictly diagonally dominant.')
+    S, switch_indices, _ = solutions[0]
+    return S, switch_indices
+
+
+def _push_new_solutions(diag_i, prev_solution, queue):
+    S, switch_indices, num_strict = prev_solution
+    max_indices = _max_elems_after_diag_elem_indices(S, diag_i)
+
+    num_new_solutions = 0
+    for i in range(len(max_indices)):
+        max_i = max_indices[i]
+        sum_ = _sum_all_but_ith_in_row(S[diag_i, :], max_i)
+        diag = abs(S[diag_i, max_i])
+
+        if sum_ <= diag:
+
+            if sum_ < diag:
+                num_strict += 1
+
+            # columns switch on the first solution can always be
+            # done in place
+            if i != 0:
+                S = S.copy()
+
+            switch_index = [diag_i, max_i]
+            S[:, switch_index] = S[:, switch_index[::-1]]
+
+            switch_indices.append(switch_index)
+            queue.put_nowait((S, switch_indices, num_strict))
+
+            num_new_solutions += 1
+
+    return num_new_solutions
+
+
+def _max_elems_after_diag_elem_indices(S, diag_i):
+    max_elems = np.amax(np.abs(S[diag_i, diag_i:]))
+    max_indices = np.argwhere(np.abs(S[diag_i, diag_i:]) == max_elems)
+    return max_indices.flatten() + diag_i
+
+
+def _sum_all_but_ith_in_row(row, i):
+    mask = np.ones(row.shape, dtype=bool)
+    mask[i] = False
+    return np.sum(np.abs(row[mask]))
 
 
 def iterative_jacobi(C, b, x0, accuracy):
@@ -80,14 +177,14 @@ def iterative_jacobi(C, b, x0, accuracy):
         return 1 / a_i * (b[i] - sum_before - sum_after)
 
     # previous and current approximations need to be different arrays
-    # and current solution must not be changed inplace
+    # and current solution must not be changed in place
     return _iterate(
         C, b,
         x_prev=x0,
         x_curr=x0.copy(),
         iteration_formula=jacobi_formula,
         accuracy=accuracy,
-        inplace=False
+        in_place=False
     )
 
 
@@ -100,14 +197,14 @@ def iterative_gauss_seidel(C, b, x0, accuracy):
         return 1 / a_i * (b[i] - sum_before - sum_after)
 
     # previous and current approximations need to be same arrays
-    # and current solution must be changed inplace
+    # and current solution must be changed in place
     return _iterate(
         C, b,
         x_prev=x0,
         x_curr=x0,
         iteration_formula=gauss_seidel_formula,
         accuracy=accuracy,
-        inplace=True
+        in_place=True
     )
 
 
@@ -121,7 +218,7 @@ def iterative_sor(C, b, x0, accuracy, omega):
         return omega * gauss_seidel + (1 - omega) * x_prev[i]
 
     # previous and current approximations need to be same arrays and current
-    # solution must be changed inplace like in _iterative_gauss_seidel(...) but
+    # solution must be changed in place like in _iterative_gauss_seidel(...) but
     # relaxation is used in the iteration formula above
     return _iterate(
         C, b,
@@ -129,11 +226,11 @@ def iterative_sor(C, b, x0, accuracy, omega):
         x_curr=x0,
         iteration_formula=sor_formula,
         accuracy=accuracy,
-        inplace=True
+        in_place=True
     )
 
 
-def _iterate(C, b, x_prev, x_curr, iteration_formula, accuracy, inplace):
+def _iterate(C, b, x_prev, x_curr, iteration_formula, accuracy, in_place):
     is_sparse = _is_sparse(C)
     num_rows = C.shape[0]
     num_iter = 0
@@ -153,7 +250,7 @@ def _iterate(C, b, x_prev, x_curr, iteration_formula, accuracy, inplace):
                 sum_before, sum_after, x_prev
             )
 
-        if not inplace:
+        if not in_place:
             x_prev = x_curr.copy()
 
         b_curr = _dot_sparse(C, x_curr) if is_sparse else np.dot(C, x_curr)

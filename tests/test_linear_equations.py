@@ -1,8 +1,10 @@
 from unittest import TestCase
 
 import numpy as np
+from numpy.random import rand, randint
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
+from numerical.linear_equations import _make_diag_dominant
 from numerical.linear_equations import iterative_gauss_seidel, _dot_sparse
 from numerical.linear_equations import iterative_jacobi, iterative_sor
 from numerical.linear_equations import to_sparse, iterative, _is_sparse
@@ -119,7 +121,7 @@ class IterativeMethodsTest(TestCase):
         self.assertTrue(res_s['gs_num_iter'] == res['gs_num_iter'])
         self.assertTrue(res_s['sor_num_iter'] == res['sor_num_iter'])
 
-    def test_mul_sparse(self):
+    def test_dot_sparse(self):
         x = np.array([1, 1, 1, 1])
         M = to_sparse(self.A)
         expected_b = _dot_sparse(M, x)
@@ -130,3 +132,55 @@ class IterativeMethodsTest(TestCase):
         self.assertFalse(_is_sparse(self.A))
         M = to_sparse(self.A)
         self.assertTrue(_is_sparse(M))
+
+    def test_make_diag_dominant(self):
+        A_dd = np.array([
+            [3, -2, 1],
+            [1, -3, 2],
+            [-1, 2, 4]])
+
+        A_non_dd = np.array([
+            [-2, 2, 1],
+            [1, 3, 2],
+            [1, -2, 0]])
+
+        for _ in range(1000):
+            dd = A_dd.copy()
+            non_dd = A_non_dd.copy()
+
+            self._rand_permute_2_rows_cols(dd)
+            self._rand_permute_2_rows_cols(non_dd)
+
+            dd = _make_diag_dominant(dd)[0]
+            d = np.diag(dd).copy()
+            np.fill_diagonal(dd, 0)
+            self.assertTrue(np.all(np.sum(np.abs(dd), axis=1) <= np.abs(d)))
+
+            with self.assertRaises(ValueError):
+                _make_diag_dominant(A_non_dd)
+
+    def test_rand_systems(self):
+        C = np.array([
+            [3, -2, 0, 0],
+            [1, -3, 1, 0],
+            [-1, 2, 4, 0],
+            [0, 1, -2, 4]])
+
+        for _ in range(1000):
+            A = C.copy()
+            self._rand_permute_2_rows_cols(A)
+            expected_x = rand(self.x0.shape[0])
+            b = np.dot(A, expected_x)
+
+            x = iterative(A, b, self.x0, self.acc, self.omega)['x']
+            assert_array_almost_equal(np.dot(A, x), b)
+
+    @staticmethod
+    def _rand_permute_2_rows_cols(X):
+        row_i = randint(0, X.shape[0])
+        row_i_s = randint(0, X.shape[0])
+        col_i = randint(0, X.shape[1])
+        col_i_s = randint(0, X.shape[1])
+
+        X[[row_i, row_i_s], :] = X[[row_i_s, row_i], :]
+        X[:, [col_i, col_i_s]] = X[:, [col_i_s, col_i]]
