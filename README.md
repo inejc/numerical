@@ -6,3 +6,4 @@ Python implementations of various numerical methods.
 
 ### Currently implemented
 * [Iterative methods for solving linear equation systems with diagonally dominant matrices](numerical/linear_equations.py)
+* [Inverse iteration (inverse power method)](numerical/eigen.py)
