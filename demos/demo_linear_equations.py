@@ -19,7 +19,7 @@ def demo_0():
         [11, 11]])
     b = np.array([203, 220])
 
-    result = iterative(A, b, x0=np.zeros(b.shape), accuracy=1e-7, omega=1)
+    result = iterative(A, b, x0=np.zeros(b.shape), acc=1e-7, omega=1)
 
     # let's take a look if the returned solution is correct
     print("Small box price: {:.2f}€".format(result['x'][0]))
@@ -45,12 +45,12 @@ def demo_1():
     _, gs_num_iter = iterative_gauss_seidel(
         A, b,
         x0=np.zeros(b.shape),
-        accuracy=1e-7,
+        acc=1e-7,
     )
     _, sor_num_iter = iterative_sor(
         A, b,
         x0=np.zeros(b.shape),
-        accuracy=1e-7,
+        acc=1e-7,
         omega=1
     )
     print("Number of iterations needed to find the solution:")
@@ -65,7 +65,7 @@ def demo_1():
         _, sor_num_iter = iterative_sor(
             A, b,
             x0=np.zeros(b.shape),
-            accuracy=1e-7,
+            acc=1e-7,
             omega=omega
         )
 

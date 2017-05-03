@@ -29,7 +29,7 @@ def to_sparse(A):
     return np.hstack((sub_diagonal, main_diagonal, super_diagonal))
 
 
-def iterative(C, b, x0, accuracy, omega):
+def iterative(C, b, x0, acc, omega):
     """Solves a linear equations system Cx = b with the Jacobi, Gauss-Seidel
     and SOR iterative methods where C is a diagonally dominant square matrix
     (i.e. a coefficient matrix) or a sparse representation of it. Additionally,
@@ -48,7 +48,7 @@ def iterative(C, b, x0, accuracy, omega):
     x0: array-like, shape (n,)
         Initial arbitrary approximation for the solution of the Cx = b system.
 
-    accuracy: float
+    acc: float
         Desired accuracy of the solution (i.e. the stopping condition).
 
     omega: float
@@ -74,9 +74,9 @@ def iterative(C, b, x0, accuracy, omega):
     if not is_sparse:
         C, switch_indices = _make_diag_dominant(C.copy())
 
-    x, j_num_iter = iterative_jacobi(C, b, x0.copy(), accuracy)
-    _, gs_num_iter = iterative_gauss_seidel(C, b, x0.copy(), accuracy)
-    _, sor_num_iter = iterative_sor(C, b, x0.copy(), accuracy, omega)
+    x, j_num_iter = iterative_jacobi(C, b, x0.copy(), acc)
+    _, gs_num_iter = iterative_gauss_seidel(C, b, x0.copy(), acc)
+    _, sor_num_iter = iterative_sor(C, b, x0.copy(), acc, omega)
 
     if not is_sparse:
         for i0, i1 in reversed(switch_indices):
@@ -168,7 +168,7 @@ def _sum_all_but_ith_in_row(row, i):
     return np.sum(np.abs(row[mask]))
 
 
-def iterative_jacobi(C, b, x0, accuracy):
+def iterative_jacobi(C, b, x0, acc):
     """Solves a linear equations system Cx = b with the Jacobi method.
     For parameters see the iterative(...) function above.
     """
@@ -183,12 +183,12 @@ def iterative_jacobi(C, b, x0, accuracy):
         x_prev=x0,
         x_curr=x0.copy(),
         iteration_formula=jacobi_formula,
-        accuracy=accuracy,
+        acc=acc,
         in_place=False
     )
 
 
-def iterative_gauss_seidel(C, b, x0, accuracy):
+def iterative_gauss_seidel(C, b, x0, acc):
     """Solves a linear equations system Cx = b with the Gauss-Seidel method.
     For parameters see the iterative(...) function above.
     """
@@ -203,12 +203,12 @@ def iterative_gauss_seidel(C, b, x0, accuracy):
         x_prev=x0,
         x_curr=x0,
         iteration_formula=gauss_seidel_formula,
-        accuracy=accuracy,
+        acc=acc,
         in_place=True
     )
 
 
-def iterative_sor(C, b, x0, accuracy, omega):
+def iterative_sor(C, b, x0, acc, omega):
     """Solves a linear equations system Cx = b with the SOR method.
     For parameters see the iterative(...) function above.
     """
@@ -225,12 +225,12 @@ def iterative_sor(C, b, x0, accuracy, omega):
         x_prev=x0,
         x_curr=x0,
         iteration_formula=sor_formula,
-        accuracy=accuracy,
+        acc=acc,
         in_place=True
     )
 
 
-def _iterate(C, b, x_prev, x_curr, iteration_formula, accuracy, in_place):
+def _iterate(C, b, x_prev, x_curr, iteration_formula, acc, in_place):
     is_sparse = _is_sparse(C)
     num_rows = C.shape[0]
     num_iter = 0
@@ -254,7 +254,7 @@ def _iterate(C, b, x_prev, x_curr, iteration_formula, accuracy, in_place):
             x_prev = x_curr.copy()
 
         b_curr = _dot_sparse(C, x_curr) if is_sparse else np.dot(C, x_curr)
-        if norm(b_curr - b, np.inf) < accuracy:
+        if norm(b_curr - b, np.inf) < acc:
             return x_curr, num_iter
 
 
