@@ -4,6 +4,7 @@ import numpy as np
 from numpy.testing import assert_array_almost_equal
 from scipy.linalg import norm
 
+from numerical.eigen import _lu_hessenberg
 from numerical.eigen import inverse_iteration, householder_reduce
 
 
@@ -75,3 +76,14 @@ class PowerIterationTest(TestCase):
     def _assert_collinear(self, x, y):
         abs_cos = np.abs(x.dot(y) / (norm(x) * norm(y)))
         self.assertAlmostEqual(abs_cos, 1)
+
+    def test_lu_hessenberg(self):
+        A = np.array([
+            [1, -4, 0, 3],
+            [-1, 3, 0, -2],
+            [3, -7, -2, 6],
+            [0, 4, 0, -2]]).astype(float)
+
+        H, _ = householder_reduce(A)
+        L, U = _lu_hessenberg(H)
+        assert_array_almost_equal(H, L.dot(U))

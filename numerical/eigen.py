@@ -38,14 +38,18 @@ def inverse_iteration(A, eigval_approx, reduce=True, acc=1e-6):
 
     I = np.identity(A.shape[0])
     A_shifted = A - eigval_approx * I
-
     eigvec = rand(A.shape[0])
 
-    P, L, U = lu(A_shifted)
+    if reduce:
+        L, U = _lu_hessenberg(A_shifted)
+    else:
+        P, L, U = lu(A_shifted)
 
     while True:
-        # avoid computing the inverse of a matrix (use LU decomposition instead)
-        x = solve_triangular(L, P.dot(eigvec), lower=True)
+        # avoid computing the inverse of a matrix
+        # and use LU decomposition instead
+        y = eigvec if reduce else P.dot(eigvec)
+        x = solve_triangular(L, y, lower=True)
         x = solve_triangular(U, x)
 
         eigvec = x / norm(x)
@@ -55,14 +59,14 @@ def inverse_iteration(A, eigval_approx, reduce=True, acc=1e-6):
             break
 
     if reduce:
-        eigvec = _dot_Q_x(vectors_u, eigvec)
+        eigvec = _dot_q_x(vectors_u, eigvec)
 
     return eigvec, eigval
 
 
 def householder_reduce(A):
     """Computes the reduction of a matrix to a similar Hessenberg matrix using
-    householder reflections. If input is symmetric reduction results in a
+    Householder reflections. If input is symmetric reduction results in a
     tridiagonal matrix.
 
     Parameters
@@ -95,8 +99,19 @@ def householder_reduce(A):
     return H, vectors_u
 
 
-def _dot_Q_x(vectors_u, x):
+def _dot_q_x(vectors_u, x):
     reversed_ = zip(range(len(vectors_u), 0, -1), reversed(vectors_u))
     for i, u in reversed_:
         x[i:] = x[i:] - 2 * u.dot(u.T.dot(x[i:]))
     return x
+
+
+def _lu_hessenberg(H):
+    L = np.identity(H.shape[0])
+    U = H.copy()
+
+    for i in range(U.shape[0] - 1):
+        L[i + 1, i] = U[i + 1, i] / U[i, i]
+        U[i + 1, :] = U[i + 1, :] - L[i + 1, i] * U[i, :]
+
+    return L, U
