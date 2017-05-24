@@ -4,7 +4,7 @@ from os.path import join, dirname
 import numpy as np
 
 
-def std_norm_cdf(x):
+def std_norm_cdf(x, n=1):
     """Computes a cumulative distribution function of the standard normal
     distribution with precision of ten decimal places.
 
@@ -13,6 +13,10 @@ def std_norm_cdf(x):
     x: float
         Value of the random variable.
 
+    n: int
+        Number of regions in which each interval is split during
+        integration. Mainly for error estimation purposes.
+
     Returns
     -------
     F: float
@@ -20,17 +24,17 @@ def std_norm_cdf(x):
     """
     const = 1 / sqrt(2 * pi)
 
-    if x <= -3:
+    if x < -3:
         u = 1 / x
-        return const * gauss_quad(_propto_pdf_changed_var, 0, u, num_points=15)
-    elif -3 < x <= 0:
-        return .5 - const * gauss_quad(_propto_pdf, x, 0, num_points=9)
+        return const * gauss_quad(_propto_pdf_changed_var, 0, u, m=15, n=n)
+    elif -3 <= x <= 0:
+        return .5 - const * gauss_quad(_propto_pdf, x, 0, m=9, n=n)
     elif 0 < x <= 3:
-        return .5 + const * gauss_quad(_propto_pdf, 0, x, num_points=9)
+        return .5 + const * gauss_quad(_propto_pdf, 0, x, m=9, n=n)
     else:
         # can't compute 1 - F because of catastrophic cancellation
-        F_0_3 = gauss_quad(_propto_pdf, 0, 3, num_points=9)
-        F_3_x = gauss_quad(_propto_pdf_changed_var, 1 / 3, 1 / x, num_points=15)
+        F_0_3 = gauss_quad(_propto_pdf, 0, 3, m=9, n=n)
+        F_3_x = gauss_quad(_propto_pdf_changed_var, 1 / 3, 1 / x, m=15, n=n)
         return .5 + const * (F_0_3 + F_3_x)
 
 
@@ -43,7 +47,7 @@ def _propto_pdf_changed_var(u):
     return - np.exp(- .5 * u ** -2) / u ** 2
 
 
-def gauss_quad(func, a, b, num_points, n=1):
+def gauss_quad(func, a, b, m, n=1):
     """Approximates a definite integral of func on interval [a, b] using
     Legendre-Gauss quadrature integral approximation.
 
@@ -58,7 +62,7 @@ def gauss_quad(func, a, b, num_points, n=1):
     b: float
         Upper bound of the integration.
 
-    num_points: int, one of (9, 15)
+    m: int, one of (9, 15)
         Number of weights and abscissae to use (i.e. Legendre roots
         and coefficients).
 
@@ -70,8 +74,8 @@ def gauss_quad(func, a, b, num_points, n=1):
     I_hat: float
         Estimate of the area under the curve.
     """
-    assert num_points in _LEGENDRE.keys()
-    legendre = _LEGENDRE[num_points]
+    assert m in _LEGENDRE.keys()
+    legendre = _LEGENDRE[m]
 
     h_half = 0.5 * (b - a) / n
 
@@ -86,7 +90,7 @@ def gauss_quad(func, a, b, num_points, n=1):
 def gauss_quad_2(func, a, b, n=1):
     """Approximates a definite integral of func on interval [a, b] using
     a vectorized Legendre-Gauss quadrature integral approximation of degree 2.
-    For parameters and return values see gauss_quad_9 above, but note that
+    For parameters and return values see gauss_quad above, but note that
     func has to be a vectorized function.
     """
     h_half = 0.5 * (b - a) / n
